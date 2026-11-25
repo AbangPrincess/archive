@@ -11,6 +11,7 @@ import { locateMe } from '../lib/geo';
 import { useAutoGrow } from '../lib/useAutoGrow';
 import { coverOf, hasContent, MAX_PHOTOS, type Recording } from '../lib/types';
 import { InstantStack } from '../components/InstantStack';
+import { useSmartStatus } from '../lib/smart';
 
 export function EntryScreen({ date, focusBody }: { date: string; focusBody: boolean }) {
   const entry = useEntry(date);
@@ -288,6 +289,9 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
 
 function RecordingCard({ date, rec, index, total, onDelete }: { date: string; rec: Recording; index: number; total: number; onDelete: () => void }) {
   const bars = Array.from({ length: 28 }, (_, i) => 5 + ((rec.id.charCodeAt(i % rec.id.length) * (i + 3)) % 11));
+  const smart = useSmartStatus();
+  const busy = smart.working.has(rec.id) || rec.smart === 'pending';
+  const busyLabel = smart.state === 'downloading' ? `Downloading Speech Model… ${smart.progress}%` : 'Writing Out Your Words…';
   return (
     <div className="rec-card">
       <a className="play" href={`#/entry/${date}/listen?r=${rec.id}`} aria-label={`Play Recording ${total > 1 ? index + 1 : ''}`.trim()}>
@@ -295,11 +299,17 @@ function RecordingCard({ date, rec, index, total, onDelete }: { date: string; re
       </a>
       <a className="grow stack" style={{ gap: 6 }} href={`#/entry/${date}/listen?r=${rec.id}`}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>{total > 1 ? `Recording ${index + 1}` : 'Hear Yourself Tell It'}</span>
-        <span className="wave" aria-hidden="true">
-          {bars.map((h, i) => (
-            <i key={i} style={{ height: h }} />
-          ))}
-        </span>
+        {busy ? (
+          <span className="tiny" role="status" style={{ color: 'var(--accent)', fontWeight: 500 }}>
+            {busyLabel}
+          </span>
+        ) : (
+          <span className="wave" aria-hidden="true">
+            {bars.map((h, i) => (
+              <i key={i} style={{ height: h }} />
+            ))}
+          </span>
+        )}
       </a>
       <span className="small" style={{ fontVariantNumeric: 'tabular-nums' }}>
         {duration(rec.duration)}

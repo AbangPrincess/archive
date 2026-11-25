@@ -2,11 +2,12 @@ import { useSyncExternalStore } from 'react';
 
 export type Settings = {
   autoLock: number; // minutes away before the PIN is asked again; 0 = right away
-  speechLang: string; // '' = follow the device language
+  speechLang: string; // '' = automatic
+  smartSpeech: boolean; // on-device language detection + transcription after each recording
 };
 
 const KEY = 'archive.settings';
-const DEFAULTS: Settings = { autoLock: 1, speechLang: '' };
+const DEFAULTS: Settings = { autoLock: 1, speechLang: '', smartSpeech: false };
 
 let current: Settings = load();
 const listeners = new Set<() => void>();

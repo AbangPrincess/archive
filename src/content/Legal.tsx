@@ -2,9 +2,10 @@
  * Privacy Policy and Terms of Use. Keep these in step with the code:
  * storage lives in src/lib/db.ts, src/lib/pin.ts and src/lib/settings.ts;
  * outside services are used only in src/lib/geo.ts, src/screens/PlacesScreen.tsx,
- * src/lib/speech.ts / DictateScreen.tsx (speech-to-text) and ListenScreen.tsx (read aloud).
+ * src/lib/speech.ts / DictateScreen.tsx (speech-to-text), ListenScreen.tsx (read aloud)
+ * and src/lib/smart.ts + transcriber.worker.ts (optional on-device speech model).
  */
-export const LEGAL_UPDATED = 'November 24, 2026';
+export const LEGAL_UPDATED = 'November 25, 2026';
 
 export function PrivacyPolicy() {
   return (
@@ -33,6 +34,7 @@ export function PrivacyPolicy() {
         <li><strong>Directions:</strong> tapping the directions button opens openstreetmap.org in a new tab.</li>
         <li><strong>Speech-to-text:</strong> transcription uses your browser’s built-in speech recognition. In some browsers (for example, Google Chrome) your speech is sent to the browser maker’s servers to be turned into text; in others it happens on the device. The audio recording the app saves stays on your device.</li>
         <li><strong>Read Aloud:</strong> uses your device’s or browser’s voices. Some browsers offer online voices that send the text being read to the browser maker.</li>
+        <li><strong>Smart Transcription (optional, off by default):</strong> when you turn it on, a speech model (about 75 MB) is downloaded once from Hugging Face, a public model library, and kept in this browser. Transcription then runs entirely on your device. Your recordings and words are never uploaded.</li>
       </ul>
       <p>Those services follow their own privacy policies. The website host may also keep standard server logs (such as IP addresses) needed to deliver the app’s files.</p>
 

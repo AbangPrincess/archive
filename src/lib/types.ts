@@ -17,6 +17,14 @@ export type Recording = {
   segments: Segment[];
   mime: string;
   createdAt: number;
+  /** The live preview text this recording added to the entry (replaced by Smart Transcription). */
+  liveText?: string;
+  /** Smart Transcription progress for this recording. */
+  smart?: 'pending' | 'done' | 'failed';
+  /** True when every segment is a single word with timing from the speech model itself. */
+  exact?: boolean;
+  /** Language the speech model heard (Whisper code, e.g. "tl", "en"). */
+  language?: string;
 };
 
 export type Entry = {

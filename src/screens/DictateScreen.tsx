@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Confirm } from '../components/Modal';
 import { toast } from '../components/Toast';
+import { notifySmart, runSmartQueue } from '../lib/smart';
 import { addPhotos, addRecording, photoToast, updateEntry, useEntry } from '../lib/store';
 import { duration, fromKey } from '../lib/dates';
 import { go } from '../lib/router';
@@ -262,6 +263,8 @@ export function DictateScreen({ date, autoStart = false }: { date: string; autoS
     const text = segments.map((s) => s.text).join(' ');
     if (blob && blob.size > 0 && total >= 0.5) {
       await addRecording(date, blob, { duration: total, segments }, text, title);
+      // Smart Transcription (if on) rewrites the live preview in the language that was really spoken.
+      void runSmartQueue(notifySmart);
     } else if (text || title.trim()) {
       await updateEntry(date, (e) => ({
         ...e,

@@ -9,6 +9,7 @@ import { clearPinData, getHint, setHint } from '../lib/pin';
 import { autoSpeechLang, resetSettings, setSettings, SPEECH_LANGUAGES, useSettings } from '../lib/settings';
 import { go, tabHome } from '../lib/router';
 import { recognizerClass } from '../lib/speech';
+import { isModelDownloaded, notifySmart, removeModel, runSmartQueue, setSmartSpeech, useSmartStatus } from '../lib/smart';
 import { todayKey } from '../lib/dates';
 
 const PORTFOLIO = 'https://princessabang.netlify.app';
@@ -20,6 +21,31 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
   const [usage, setUsage] = useState<string>('—');
   const [modal, setModal] = useState<'privacy' | 'terms' | 'hint' | 'wipe' | null>(null);
   const [changingPin, setChangingPin] = useState(false);
+
+  // Smart Transcription (on-device speech model)
+  const smart = useSmartStatus();
+  const [downloaded, setDownloaded] = useState(false);
+  useEffect(() => {
+    isModelDownloaded().then(setDownloaded);
+  }, [smart.state]);
+  const toggleSmart = async (on: boolean) => {
+    try {
+      await setSmartSpeech(on);
+      if (on) {
+        setDownloaded(true);
+        toast('Smart Transcription is ready.');
+        void runSmartQueue(notifySmart);
+      }
+    } catch {
+      toast('The speech model couldn’t download. Check your connection and try again.');
+    }
+  };
+  const removeSpeechModel = async () => {
+    setSettings({ smartSpeech: false });
+    await removeModel();
+    setDownloaded(false);
+    toast('The speech model was removed from this device.');
+  };
 
   // Where the browser can tell us, mark speech languages it can't listen in.
   const [unsupported, setUnsupported] = useState<Set<string>>(new Set());
@@ -125,13 +151,46 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
             <select value={settings.speechLang} onChange={(e) => setSettings({ speechLang: e.target.value })}>
               {SPEECH_LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code} disabled={unsupported.has(l.code) && l.code !== settings.speechLang}>
-                  {l.code ? l.label : `Automatic (${SPEECH_LANGUAGES.find((x) => x.code === autoSpeechLang())?.label ?? autoSpeechLang()})`}
+                  {l.code ? l.label : `Automatic · ${SPEECH_LANGUAGES.find((x) => x.code === autoSpeechLang())?.label ?? autoSpeechLang()}`}
                   {unsupported.has(l.code) ? ' — Not Supported Here' : ''}
                 </option>
               ))}
             </select>
           </label>
+          <button className="setting" role="switch" aria-checked={settings.smartSpeech} onClick={() => toggleSmart(!settings.smartSpeech)}>
+            <span className="label">Smart Transcription</span>
+            <span className={`switch${settings.smartSpeech ? ' on' : ''}`} aria-hidden="true" />
+          </button>
+          {(settings.smartSpeech || downloaded) && (
+            <div className="setting">
+              <span className="label">Speech Model</span>
+              <span className="value">
+                {smart.state === 'downloading' ? (
+                  `Downloading… ${smart.progress}%`
+                ) : smart.state === 'error' ? (
+                  <button className="link-btn" style={{ minHeight: 32 }} onClick={() => toggleSmart(true)}>
+                    Download Failed · Retry
+                  </button>
+                ) : downloaded || smart.state === 'ready' ? (
+                  'Ready on This Device'
+                ) : (
+                  'Not Downloaded'
+                )}
+              </span>
+            </div>
+          )}
+          {downloaded && smart.state !== 'downloading' && (
+            <button className="setting danger" onClick={removeSpeechModel}>
+              <span className="label">Remove Speech Model</span>
+              <span className="value">
+                <Icon name="trash" size={18} />
+              </span>
+            </button>
+          )}
         </div>
+        <p className="tiny" style={{ margin: '8px 4px 0', lineHeight: 1.5 }}>
+          Smart Transcription works out which language you actually spoke (Tagalog, English and about 100 more) and writes your words out right here on your phone after you tap Done, timed word by word. Your voice never leaves the device. Turning it on downloads the speech model once, about 90 MB.
+        </p>
 
         <h2 className="group-label eyebrow">Your Journal</h2>
         <div className="group">
@@ -165,7 +224,7 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
           </div>
           <div className="setting">
             <span className="label">Map Data</span>
-            <span className="value">© OpenStreetMap Contributors</span>
+            <span className="value">© OpenStreetMap</span>
           </div>
         </div>
 

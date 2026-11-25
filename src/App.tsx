@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LockScreen } from './components/LockScreen';
-import { ToastHost } from './components/Toast';
+import { ToastHost, toast } from './components/Toast';
+import { notifySmart, runSmartQueue, setSmartAnnouncer } from './lib/smart';
 import { AllScreen } from './screens/AllScreen';
 import { FavoritesScreen } from './screens/FavoritesScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
@@ -35,7 +36,9 @@ export function App() {
   const { parts, query: qs } = useRoute();
 
   useEffect(() => {
-    loadEntries();
+    setSmartAnnouncer(toast);
+    // Finish any Smart Transcription that was still waiting when the app last closed.
+    loadEntries().then(() => runSmartQueue(notifySmart));
   }, []);
 
   // Auto-Lock: ask for the PIN again only after the app has been away for the chosen time.

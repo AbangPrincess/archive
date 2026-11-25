@@ -7,6 +7,7 @@ A private digital journal for your days — photos, places and your own voice, l
 - **All, Favorites, Calendar and Places** views of every day you've written about
 - **Day entries** with a photo of the day, headline, diary text and a photo dump
 - **Speak your entry** — words appear as you talk, and your voice is saved so you can listen back with the text following along
+- **Smart Transcription** (optional): works out which language you spoke — Tagalog, English and about 100 more — and writes your words out on your own device with word-by-word timing
 - **Read Aloud** for any entry
 - **Camera first** photo capture, with your gallery one tap away
 - **Places map** powered by OpenStreetMap (free, no API key)
@@ -15,7 +16,7 @@ A private digital journal for your days — photos, places and your own voice, l
 
 ## Privacy
 
-Everything stays on your device in the browser's own storage. There are no accounts, servers, analytics or API keys. See the Privacy Policy inside the app (Menu › Privacy Policy) for details.
+Everything stays on your device in the browser's own storage. There are no accounts, servers, analytics or API keys. The optional speech model is downloaded once from Hugging Face and runs on the device; recordings are never uploaded. See the Privacy Policy inside the app (Menu › Privacy Policy) for details.
 
 ## Run Locally
 

@@ -37,7 +37,12 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
 
   const total = rec ? (analysis?.duration && Number.isFinite(analysis.duration) ? analysis.duration : rec.duration) : 0;
 
-  const voiceWords = useMemo<Word[]>(() => (rec ? alignWords(rec.segments, analysis, rec.duration).map((w) => ({ ...w, char: 0 })) : []), [rec, analysis]);
+  const voiceWords = useMemo<Word[]>(() => {
+    if (!rec) return [];
+    // Smart Transcription gives each word its own exact time; otherwise line words up with the audio.
+    if (rec.exact) return rec.segments.map((s) => ({ text: s.text, at: s.start, char: 0 }));
+    return alignWords(rec.segments, analysis, rec.duration).map((w) => ({ ...w, char: 0 }));
+  }, [rec, analysis]);
 
   const readWords = useMemo<Word[]>(() => {
     const out: Word[] = [];

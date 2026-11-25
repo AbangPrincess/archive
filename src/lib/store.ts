@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { db, uid } from './db';
 import { emptyEntry, hasContent, MAX_PHOTOS, type Entry, type Recording } from './types';
 import { resizeImage } from './media';
+import { getSettings } from './settings';
 
 /** Small in-memory mirror of the entries store so every screen stays in sync. */
 let entries: Entry[] = [];
@@ -33,6 +34,8 @@ export function useEntry(date: string): Entry {
   const { entries: list } = useEntries();
   return list.find((e) => e.date === date) ?? emptyEntry(date);
 }
+
+export const currentEntries = (): Entry[] => entries;
 
 export function findEntry(date: string): Entry {
   return entries.find((e) => e.date === date) ?? emptyEntry(date);
@@ -97,7 +100,14 @@ export async function removePhoto(date: string, id: string) {
 export async function addRecording(date: string, blob: Blob, rec: Omit<Recording, 'id' | 'createdAt' | 'mime'>, text: string, title: string) {
   const id = uid();
   await db.putBlob(id, blob);
-  const recording: Recording = { ...rec, id, mime: blob.type, createdAt: Date.now() };
+  const recording: Recording = {
+    ...rec,
+    id,
+    mime: blob.type,
+    createdAt: Date.now(),
+    liveText: text || undefined,
+    smart: getSettings().smartSpeech ? 'pending' : undefined,
+  };
   await updateEntry(date, (e) => ({
     ...e,
     title: title.trim() ? title : e.title,
