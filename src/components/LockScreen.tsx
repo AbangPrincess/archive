@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal } from './Modal';
+import { AppLogo } from './AppLogo';
 import { checkPin, getFails, getHint, hintUnlocked, lockRemaining, MAX_TRIES, recordFail, resetFails, setHint, setPin, clearPinData } from '../lib/pin';
 import { wipeEverything } from '../lib/store';
 import { resetSettings } from '../lib/settings';
@@ -78,7 +79,7 @@ export function LockScreen({ mode, onDone, onCancel }: Props) {
           if (pin !== first) {
             setStep('create');
             setFirst('');
-            fail('Those PINs didn’t match. Please try again.');
+            fail('Those PINs didnâ€™t match. Please try again.');
             return;
           }
           if (mode === 'setup') {
@@ -151,8 +152,8 @@ export function LockScreen({ mode, onDone, onCancel }: Props) {
         </button>
       )}
       <div className="lock-inner">
-        <span className="eyebrow">Archive</span>
-        <h1 id="lock-title" className="h2" style={{ marginTop: 6 }}>
+        <AppLogo size={56} title="Archive" />
+        <h1 id="lock-title" className="h2 lock-title">
           {title}
         </h1>
         <p className={`msg${message?.error && !locked ? ' error' : ''}`} aria-live="polite">
@@ -209,7 +210,7 @@ function HintStep({ pin, onSaved }: { pin: string; onSaved: () => void }) {
   const save = async () => {
     const h = hint.trim();
     if (h.length < 2) return setError('Please write a short hint.');
-    if (h.replace(/\D/g, '').includes(pin)) return setError('Your hint can’t include the PIN itself.');
+    if (h.replace(/\D/g, '').includes(pin)) return setError('Your hint canâ€™t include the PIN itself.');
     await setPin(pin);
     setHint(h);
     try {
@@ -228,15 +229,15 @@ function HintStep({ pin, onSaved }: { pin: string; onSaved: () => void }) {
           save();
         }}
       >
-        <span className="eyebrow">Archive</span>
-        <h1 id="hint-title" className="h2" style={{ marginTop: 6 }}>
+        <AppLogo size={56} title="Archive" />
+        <h1 id="hint-title" className="h2 lock-title">
           Add a PIN Hint
         </h1>
         <p className="msg">If you get your PIN wrong 4 times, this hint will appear to help you remember.</p>
         <div className="field lock-field">
           <label htmlFor="pin-hint">PIN Hint</label>
-          <input id="pin-hint" value={hint} maxLength={80} autoComplete="off" onChange={(e) => (setHintText(e.target.value), setError(''))} placeholder="e.g. My Lola’s Birthday" />
-          {error ? <span className="error">{error}</span> : <span className="help">Don’t type the PIN itself.</span>}
+          <input id="pin-hint" value={hint} maxLength={80} autoComplete="off" onChange={(e) => (setHintText(e.target.value), setError(''))} placeholder="e.g. My Lolaâ€™s Birthday" />
+          {error ? <span className="error">{error}</span> : <span className="help">Donâ€™t type the PIN itself.</span>}
         </div>
         <button className="btn btn-primary" type="submit" style={{ marginTop: 24, width: '100%' }}>
           Save and Open Journal
@@ -250,7 +251,7 @@ function ForgotModal({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState('');
   return (
     <Modal title="Forgot Your PIN?" onClose={onClose} small>
-      <p>Your journal is stored only on this device and the PIN can’t be recovered. The only way back in is to erase this journal and start fresh. This deletes every entry, photo and recording, and it can’t be undone.</p>
+      <p>Your journal is stored only on this device and the PIN canâ€™t be recovered. The only way back in is to erase this journal and start fresh. This deletes every entry, photo and recording, and it canâ€™t be undone.</p>
       <div className="field" style={{ marginTop: 12 }}>
         <label htmlFor="erase-confirm">Type ERASE to Confirm</label>
         <input id="erase-confirm" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCapitalize="characters" />

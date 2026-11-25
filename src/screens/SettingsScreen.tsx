@@ -8,6 +8,7 @@ import { useEntries, wipeEverything } from '../lib/store';
 import { clearPinData, getHint, setHint } from '../lib/pin';
 import { resetSettings, setSettings, SPEECH_LANGUAGES, useSettings } from '../lib/settings';
 import { go, tabHome } from '../lib/router';
+import { recognizerClass } from '../lib/speech';
 import { todayKey } from '../lib/dates';
 
 const PORTFOLIO = 'https://princessabang.netlify.app';
@@ -19,6 +20,26 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
   const [usage, setUsage] = useState<string>('—');
   const [modal, setModal] = useState<'privacy' | 'terms' | 'hint' | 'wipe' | null>(null);
   const [changingPin, setChangingPin] = useState(false);
+
+  // Where the browser can tell us, mark speech languages it can't listen in.
+  const [unsupported, setUnsupported] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const Ctor = recognizerClass() as unknown as { available?: (o: { langs: string[]; processLocally: boolean }) => Promise<string> } | null;
+    if (!Ctor?.available) return;
+    let live = true;
+    Promise.all(
+      SPEECH_LANGUAGES.filter((l) => l.code).map(async (l) => {
+        try {
+          return (await Ctor.available!({ langs: [l.code], processLocally: false })) === 'unavailable' ? l.code : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((codes) => live && setUnsupported(new Set(codes.filter((c): c is string => Boolean(c)))));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     navigator.storage
@@ -103,8 +124,9 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
             <span className="label">Speech Language</span>
             <select value={settings.speechLang} onChange={(e) => setSettings({ speechLang: e.target.value })}>
               {SPEECH_LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
+                <option key={l.code} value={l.code} disabled={unsupported.has(l.code) && l.code !== settings.speechLang}>
                   {l.label}
+                  {unsupported.has(l.code) ? ' — Not Supported Here' : ''}
                 </option>
               ))}
             </select>

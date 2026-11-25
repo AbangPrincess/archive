@@ -5,44 +5,39 @@ import { blobUrl, useEntry } from '../lib/store';
 import { db } from '../lib/db';
 import { duration, longDate } from '../lib/dates';
 import { go } from '../lib/router';
-import { waveformPeaks } from '../lib/media';
-import { getSettings } from '../lib/settings';
+import { alignWords, analyzeRecording, placeholderPeaks, type AudioAnalysis } from '../lib/media';
+import { speechLangFor } from '../lib/settings';
 import { coverOf } from '../lib/types';
 
-type Mode = 'voice' | 'read';
 type Word = { text: string; at: number; char: number };
 const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
 const BARS = 48;
 
+/**
+ * One player, one job:
+ * - entries with a voice recording → "Hear Yourself" plays your own voice, text follows along;
+ * - written entries → "Read Aloud" reads the text with a device voice.
+ */
 export function ListenScreen({ date, recId }: { date: string; recId: string | null }) {
   const entry = useEntry(date);
   const recs = entry.recordings;
-  const [currentId, setCurrentId] = useState(recId && recs.some((r) => r.id === recId) ? recId : recs[0]?.id ?? null);
+  const [currentId, setCurrentId] = useState(recId && recs.some((r) => r.id === recId) ? recId : (recs[0]?.id ?? null));
   const rec = recs.find((r) => r.id === currentId) ?? null;
-  const [mode, setMode] = useState<Mode>(rec ? 'voice' : 'read');
+  const voice = rec !== null;
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [src, setSrc] = useState<string>();
-  const [peaks, setPeaks] = useState<number[]>(() => Array(BARS).fill(0.3));
+  const [analysis, setAnalysis] = useState<AudioAnalysis | null>(null);
   const [readIdx, setReadIdx] = useState(-1);
   const audio = useRef<HTMLAudioElement>(null);
   const textEl = useRef<HTMLDivElement>(null);
   const readFrom = useRef(0);
+  const raf = useRef(0);
 
-  const total = mode === 'voice' ? (rec?.duration ?? 0) : 0;
+  const total = rec ? (analysis?.duration && Number.isFinite(analysis.duration) ? analysis.duration : rec.duration) : 0;
 
-  // Words timed to the recording (voice) or positioned in the text (read aloud).
-  const voiceWords = useMemo<Word[]>(() => {
-    if (!rec) return [];
-    const out: Word[] = [];
-    for (const s of rec.segments) {
-      const parts = s.text.split(/\s+/).filter(Boolean);
-      const span = Math.max(0.2, s.end - s.start);
-      parts.forEach((w, i) => out.push({ text: w, at: s.start + (span * i) / parts.length, char: 0 }));
-    }
-    return out;
-  }, [rec]);
+  const voiceWords = useMemo<Word[]>(() => (rec ? alignWords(rec.segments, analysis, rec.duration).map((w) => ({ ...w, char: 0 })) : []), [rec, analysis]);
 
   const readWords = useMemo<Word[]>(() => {
     const out: Word[] = [];
@@ -52,18 +47,20 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
     return out;
   }, [entry.body]);
 
-  const words = mode === 'voice' ? voiceWords : readWords;
-  const nowIdx = mode === 'voice' ? lastIndexAtOrBefore(voiceWords, t) : readIdx;
+  const words = voice ? voiceWords : readWords;
+  const nowIdx = voice ? lastIndexAtOrBefore(voiceWords, t) : readIdx;
 
-  // Load audio + waveform for the chosen recording.
+  // Load the chosen recording and study its audio for word timing.
   useEffect(() => {
     let live = true;
     setT(0);
     setPlaying(false);
+    setAnalysis(null);
     if (!rec) return;
     blobUrl(rec.id).then((u) => live && setSrc(u));
     db.getBlob(rec.id).then(async (b) => {
-      if (b && live) setPeaks(await waveformPeaks(b, BARS));
+      const a = b ? await analyzeRecording(b, BARS) : null;
+      if (live) setAnalysis(a);
     });
     return () => {
       live = false;
@@ -74,6 +71,18 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
     if (audio.current) audio.current.playbackRate = speed;
   }, [speed, src]);
 
+  // Smooth, frame-accurate highlight while the recording plays.
+  useEffect(() => {
+    if (!playing || !voice) return;
+    const tick = () => {
+      const a = audio.current;
+      if (a) setT(a.currentTime);
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [playing, voice]);
+
   // Keep the current word in view.
   useEffect(() => {
     if (nowIdx < 0) return;
@@ -81,14 +90,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [nowIdx]);
 
-  // Stop any speech when leaving or switching modes.
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
-  useEffect(() => {
-    window.speechSynthesis?.cancel();
-    audio.current?.pause();
-    setPlaying(false);
-    setReadIdx(-1);
-  }, [mode]);
 
   const speakFrom = (wordIndex: number, rate = speed) => {
     const synth = window.speechSynthesis;
@@ -97,23 +99,21 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
     const startChar = readWords[Math.max(0, wordIndex)]?.char ?? 0;
     readFrom.current = startChar;
     const u = new SpeechSynthesisUtterance(entry.body.slice(startChar));
-    u.lang = getSettings().speechLang || navigator.language || 'en-US';
+    u.lang = speechLangFor();
     u.rate = rate;
-    u.onboundary = (e) => {
-      const abs = readFrom.current + e.charIndex;
-      setReadIdx(lastCharAtOrBefore(readWords, abs));
-    };
+    u.onboundary = (e) => setReadIdx(lastCharAtOrBefore(readWords, readFrom.current + e.charIndex));
     u.onend = () => {
       setPlaying(false);
       setReadIdx(-1);
     };
     u.onerror = () => setPlaying(false);
     synth.speak(u);
+    setReadIdx(Math.max(0, wordIndex));
     setPlaying(true);
   };
 
   const toggle = () => {
-    if (mode === 'voice') {
+    if (voice) {
       const a = audio.current;
       if (!a) return;
       if (a.paused) a.play().catch(() => setPlaying(false));
@@ -136,11 +136,10 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
   };
 
   const jumpTo = (i: number) => {
-    if (mode === 'voice') {
+    if (voice) {
       seek(voiceWords[i].at);
       audio.current?.play().catch(() => undefined);
     } else {
-      setReadIdx(i);
       speakFrom(i);
     }
   };
@@ -148,10 +147,11 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
   const cycleSpeed = () => {
     const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     setSpeed(next);
-    if (mode === 'read' && playing) speakFrom(Math.max(0, readIdx), next);
+    if (!voice && playing) speakFrom(Math.max(0, readIdx), next);
   };
 
-  const progress = mode === 'voice' ? (total ? t / total : 0) : readWords.length ? Math.max(0, readIdx) / readWords.length : 0;
+  const progress = voice ? (total ? t / total : 0) : readWords.length ? Math.max(0, readIdx) / readWords.length : 0;
+  const peaks = analysis?.peaks ?? placeholderPeaks(BARS);
 
   const share = async () => {
     if (!rec) return;
@@ -174,7 +174,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
   };
 
   const cover = coverOf(entry);
-  const canRead = typeof window !== 'undefined' && 'speechSynthesis' in window && readWords.length > 0;
+  const canRead = 'speechSynthesis' in window && readWords.length > 0;
 
   return (
     <div className="tool-page">
@@ -184,7 +184,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
             <Icon name="chevDown" stroke={2} />
           </button>
           <span className="eyebrow" style={{ textAlign: 'center', fontWeight: 600 }}>
-            Listen Back
+            {voice ? 'Hear Yourself' : 'Read Aloud'}
           </span>
           {rec ? (
             <button className="icon-btn" aria-label="Share or Save Recording" onClick={share}>
@@ -205,19 +205,8 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
           </div>
         </div>
 
-        <div className="segmented" role="radiogroup" aria-label="Playback Voice" style={{ marginTop: 18 }}>
-          <button role="radio" aria-checked={mode === 'voice'} disabled={!rec} onClick={() => setMode('voice')}>
-            <Icon name="mic" size={15} stroke={2} />
-            My Recording
-          </button>
-          <button role="radio" aria-checked={mode === 'read'} disabled={!canRead} onClick={() => setMode('read')}>
-            <Icon name="speaker" size={15} stroke={2} />
-            Read Aloud
-          </button>
-        </div>
-
-        {mode === 'voice' && recs.length > 1 && (
-          <div className="clip-tabs" style={{ marginTop: 12 }} role="group" aria-label="Recordings">
+        {voice && recs.length > 1 && (
+          <div className="clip-tabs" style={{ marginTop: 16 }} role="group" aria-label="Recordings">
             {recs.map((r, i) => (
               <button key={r.id} aria-pressed={r.id === currentId} onClick={() => setCurrentId(r.id)}>
                 Recording {i + 1} · {duration(r.duration)}
@@ -229,7 +218,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
         <div ref={textEl} className="transcript synced" style={{ paddingTop: 20 }}>
           {words.length === 0 ? (
             <p className="placeholder" style={{ margin: 0 }}>
-              {mode === 'voice' ? 'No words were transcribed for this recording, but you can still listen to it.' : 'There’s no text in this entry to read aloud yet.'}
+              {voice ? 'No words were transcribed for this recording, but you can still listen to it.' : 'There’s no text in this entry to read aloud yet.'}
             </p>
           ) : (
             <p style={{ margin: 0 }}>
@@ -249,20 +238,20 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
             {peaks.map((p, i) => (
               <i key={i} className={i / BARS < progress ? 'on' : ''} style={{ height: `${Math.round(6 + p * 34)}px` }} />
             ))}
-            {mode === 'voice' && (
+            {voice && (
               <input
                 type="range"
                 min={0}
                 max={Math.max(0.1, total)}
-                step={0.1}
-                value={t}
+                step={0.05}
+                value={Math.min(t, total)}
                 aria-label="Seek"
                 aria-valuetext={`${duration(t)} of ${duration(total)}`}
                 onChange={(e) => seek(Number(e.target.value))}
               />
             )}
           </div>
-          {mode === 'voice' && (
+          {voice && (
             <div className="row between tiny" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <span>{duration(t)}</span>
               <span>{duration(total)}</span>
@@ -274,13 +263,13 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
           <button className="speed" onClick={cycleSpeed} aria-label={`Playback Speed, ${speed} Times`}>
             {speed}×
           </button>
-          <button className="icon-btn" aria-label="Back 15 Seconds" disabled={mode !== 'voice'} onClick={() => seek(t - 15)} style={{ width: 52, height: 52 }}>
+          <button className="icon-btn" aria-label="Back 15 Seconds" disabled={!voice} aria-hidden={!voice} onClick={() => seek(t - 15)} style={{ width: 52, height: 52, visibility: voice ? 'visible' : 'hidden' }}>
             <SkipIcon dir="back" />
           </button>
-          <button className="big" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} disabled={mode === 'voice' ? !src : !canRead}>
+          <button className="big" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} disabled={voice ? !src : !canRead}>
             <Icon name={playing ? 'pause' : 'play'} size={26} />
           </button>
-          <button className="icon-btn" aria-label="Forward 15 Seconds" disabled={mode !== 'voice'} onClick={() => seek(t + 15)} style={{ width: 52, height: 52 }}>
+          <button className="icon-btn" aria-label="Forward 15 Seconds" disabled={!voice} aria-hidden={!voice} onClick={() => seek(t + 15)} style={{ width: 52, height: 52, visibility: voice ? 'visible' : 'hidden' }}>
             <SkipIcon dir="fwd" />
           </button>
           <a className="icon-btn outline accent" href={`#/entry/${date}/speak`} aria-label="Add More by Voice" style={{ width: 48, height: 48 }}>
@@ -300,7 +289,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
             setPlaying(false);
             setT(total);
           }}
-          onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
+          onSeeked={(e) => setT(e.currentTarget.currentTime)}
           onLoadedMetadata={(e) => {
             // Recorded WebM files often report no duration until scanned once.
             const a = e.currentTarget;
@@ -309,6 +298,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
               const reset = () => {
                 a.removeEventListener('durationchange', reset);
                 a.currentTime = 0;
+                setT(0);
               };
               a.addEventListener('durationchange', reset);
               a.currentTime = 1e7;
@@ -330,12 +320,13 @@ function SkipIcon({ dir }: { dir: 'back' | 'fwd' }) {
 }
 
 function lastIndexAtOrBefore(words: Word[], t: number): number {
+  if (t <= 0) return -1;
   let idx = -1;
   for (let i = 0; i < words.length; i++) {
     if (words[i].at <= t) idx = i;
     else break;
   }
-  return t <= 0 ? -1 : idx;
+  return idx;
 }
 
 function lastCharAtOrBefore(words: Word[], c: number): number {

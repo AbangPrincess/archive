@@ -168,6 +168,18 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
         {entry.recordings.map((r, i) => (
           <RecordingCard key={r.id} date={date} rec={r} index={i} total={entry.recordings.length} onDelete={() => setDeleteRec(r)} />
         ))}
+        {entry.recordings.length === 0 && body.trim() && 'speechSynthesis' in window && (
+          <a className="rec-card" href={`#/entry/${date}/listen`} onClick={flush} style={{ paddingRight: 14 }}>
+            <span className="play">
+              <Icon name="play" size={18} />
+            </span>
+            <span className="grow stack" style={{ gap: 2 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Read Aloud</span>
+              <span className="tiny">Listen to this entry read back to you.</span>
+            </span>
+            <Icon name="speaker" size={20} style={{ color: 'var(--muted)' }} />
+          </a>
+        )}
 
         <article className="stack" style={{ gap: 10 }}>
           {exists && (

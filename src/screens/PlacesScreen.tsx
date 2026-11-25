@@ -84,7 +84,9 @@ export function PlacesScreen({ toggleSearch }: { toggleSearch: () => void }) {
       groups.forEach((g, i) => {
         const on = g.key === selected;
         const size = on ? 58 : 46;
-        const html = `<div class="pin${on ? ' selected' : ''}" style="width:${size}px;height:${size}px">${thumbs[i] ? `<img src="${thumbs[i]}" alt="">` : ''}${g.entries.length > 1 ? `<span class="count">${g.entries.length}</span>` : ''}</div>`;
+        const photo = thumbs[i] ? `<img src="${thumbs[i]}" alt="" draggable="false">` : '';
+        const count = g.entries.length > 1 ? `<span class="count">${g.entries.length}</span>` : '';
+        const html = `<div class="pin${on ? ' selected' : ''}" style="width:${size}px;height:${size}px"><span class="pin-photo">${photo}</span>${count}</div>`;
         const icon = L.divIcon({ html, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
         const marker = L.marker([g.lat, g.lng], { icon, title: `${g.name}, ${g.entries.length} ${g.entries.length === 1 ? 'entry' : 'entries'}`, keyboard: true, riseOnHover: true });
         marker.on('click', (ev) => {

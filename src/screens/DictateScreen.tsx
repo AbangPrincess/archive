@@ -7,7 +7,7 @@ import { duration, fromKey } from '../lib/dates';
 import { go } from '../lib/router';
 import { locateMe } from '../lib/geo';
 import { pickRecorderMime } from '../lib/media';
-import { getSettings } from '../lib/settings';
+import { SPEECH_LANGUAGES, speechFallbacks, speechLangFor } from '../lib/settings';
 import { recognizerClass, speechErrorMessage, tidyPhrase, type Recognizer } from '../lib/speech';
 import type { Segment } from '../lib/types';
 
@@ -43,6 +43,8 @@ export function DictateScreen({ date }: { date: string }) {
   const raf = useRef(0);
   const transcriptEl = useRef<HTMLDivElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
+  const lang = useRef(speechLangFor());
+  const tried = useRef<Set<string>>(new Set([lang.current]));
 
   const now = useCallback(() => banked.current + (startedAt.current ? (performance.now() - startedAt.current) / 1000 : 0), []);
 
@@ -63,7 +65,7 @@ export function DictateScreen({ date }: { date: string }) {
     const Ctor = recognizerClass();
     if (!Ctor) return;
     const r = new Ctor();
-    r.lang = getSettings().speechLang || navigator.language || 'en-US';
+    r.lang = lang.current;
     r.continuous = true;
     r.interimResults = true;
     r.maxAlternatives = 1;
@@ -91,6 +93,17 @@ export function DictateScreen({ date }: { date: string }) {
       setInterim(interimRef.current);
     };
     r.onerror = (e) => {
+      if (e.error === 'language-not-supported') {
+        // Switch to the next language the browser can handle and keep listening.
+        const next = speechFallbacks(lang.current).find((l) => !tried.current.has(l));
+        if (next) {
+          const name = (code: string) => SPEECH_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+          setNotice(`This browser can’t listen in ${name(lang.current)} yet, so it’s listening in ${name(next)} instead. Your voice is still recorded word for word.`);
+          tried.current.add(next);
+          lang.current = next;
+          return;
+        }
+      }
       const msg = speechErrorMessage(e.error);
       if (msg) setNotice(msg);
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'language-not-supported' || e.error === 'audio-capture') listening.current = false;

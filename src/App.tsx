@@ -10,18 +10,25 @@ import { DictateScreen } from './screens/DictateScreen';
 import { ListenScreen } from './screens/ListenScreen';
 import { CameraScreen } from './screens/CameraScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { Splash } from './components/Splash';
 import { go, rememberTab, useRoute } from './lib/router';
 import { hasPin } from './lib/pin';
 import { getSettings } from './lib/settings';
 import { loadEntries } from './lib/store';
 import { isValidKey, todayKey } from './lib/dates';
+import { markAway, markLeavingPage, markLocked, markUnlocked, stillUnlocked, touch } from './lib/session';
 
 type Gate = 'setup' | 'locked' | 'open';
 const TABS = ['all', 'favorites', 'calendar', 'places'];
 
+function initialGate(): Gate {
+  if (!hasPin()) return 'setup';
+  return stillUnlocked(getSettings().autoLock) ? 'open' : 'locked';
+}
+
 export function App() {
-  const [gate, setGate] = useState<Gate>(() => (hasPin() ? 'locked' : 'setup'));
-  const [everOpen, setEverOpen] = useState(false);
+  const [gate, setGate] = useState<Gate>(initialGate);
+  const [everOpen, setEverOpen] = useState(() => gate === 'open');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const hiddenAt = useRef(0);
@@ -31,25 +38,51 @@ export function App() {
     loadEntries();
   }, []);
 
-  // Ask for the PIN again after the app has been away for the chosen time.
+  // Auto-Lock: ask for the PIN again only after the app has been away for the chosen time.
+  // A page refresh is not "away", so it keeps you where you were.
   useEffect(() => {
     const onVis = () => {
+      const limit = getSettings().autoLock * 60_000;
       if (document.visibilityState === 'hidden') {
         hiddenAt.current = Date.now();
-        if (getSettings().autoLock === 0) setGate((g) => (g === 'open' ? 'locked' : g));
-      } else if (hiddenAt.current) {
-        const away = Date.now() - hiddenAt.current;
-        if (away >= getSettings().autoLock * 60_000) setGate((g) => (g === 'open' ? 'locked' : g));
+        markAway();
+        if (limit === 0) setGate((g) => (g === 'open' ? 'locked' : g)); // hide the journal straight away
+      } else {
+        const away = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
         hiddenAt.current = 0;
+        if (limit === 0 || away >= limit) {
+          setGate((g) => {
+            if (g === 'open' || g === 'locked') {
+              markLocked();
+              return 'locked';
+            }
+            return g;
+          });
+        } else {
+          touch();
+        }
       }
     };
+    const onLeave = () => markLeavingPage();
+    const beat = window.setInterval(() => document.visibilityState === 'visible' && touch(), 15_000);
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', onLeave);
+      window.clearInterval(beat);
+    };
   }, []);
 
   const unlock = useCallback(() => {
+    markUnlocked();
     setGate('open');
     setEverOpen(true);
+  }, []);
+
+  const lockNow = useCallback(() => {
+    markLocked();
+    setGate('locked');
   }, []);
 
   const [section, date, tool] = parts;
@@ -87,7 +120,7 @@ export function App() {
     else if (tool === 'camera') screen = <CameraScreen key={date} date={date} />;
     else screen = <EntryScreen key={date} date={date} focusBody={qs.get('focus') === 'body'} />;
   } else if (section === 'settings') {
-    screen = <SettingsScreen onLockNow={() => setGate('locked')} />;
+    screen = <SettingsScreen onLockNow={lockNow} />;
   } else if (tab === 'favorites') {
     screen = <FavoritesScreen toggleSearch={toggleSearch} />;
   } else if (tab === 'calendar') {
@@ -109,6 +142,7 @@ export function App() {
       {gate === 'setup' && <LockScreen mode="setup" onDone={unlock} />}
       {gate === 'locked' && <LockScreen mode="unlock" onDone={unlock} />}
       <ToastHost />
+      <Splash />
     </>
   );
 }
