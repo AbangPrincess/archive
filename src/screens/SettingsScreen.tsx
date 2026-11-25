@@ -6,7 +6,7 @@ import { toast } from '../components/Toast';
 import { PrivacyPolicy, TermsOfUse } from '../content/Legal';
 import { useEntries, wipeEverything } from '../lib/store';
 import { clearPinData, getHint, setHint } from '../lib/pin';
-import { resetSettings, setSettings, SPEECH_LANGUAGES, useSettings } from '../lib/settings';
+import { autoSpeechLang, resetSettings, setSettings, SPEECH_LANGUAGES, useSettings } from '../lib/settings';
 import { go, tabHome } from '../lib/router';
 import { recognizerClass } from '../lib/speech';
 import { todayKey } from '../lib/dates';
@@ -125,7 +125,7 @@ export function SettingsScreen({ onLockNow }: { onLockNow: () => void }) {
             <select value={settings.speechLang} onChange={(e) => setSettings({ speechLang: e.target.value })}>
               {SPEECH_LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code} disabled={unsupported.has(l.code) && l.code !== settings.speechLang}>
-                  {l.label}
+                  {l.code ? l.label : `Automatic (${SPEECH_LANGUAGES.find((x) => x.code === autoSpeechLang())?.label ?? autoSpeechLang()})`}
                   {unsupported.has(l.code) ? ' — Not Supported Here' : ''}
                 </option>
               ))}

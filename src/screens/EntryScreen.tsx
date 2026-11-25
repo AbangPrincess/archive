@@ -9,15 +9,13 @@ import { duration, longDate, timeOf, weekdayName } from '../lib/dates';
 import { go, tabHome } from '../lib/router';
 import { locateMe } from '../lib/geo';
 import { useAutoGrow } from '../lib/useAutoGrow';
-import { coverOf, hasContent, type Recording } from '../lib/types';
-
-const PREVIEW_PHOTOS = 7;
+import { coverOf, hasContent, MAX_PHOTOS, type Recording } from '../lib/types';
+import { InstantStack } from '../components/InstantStack';
 
 export function EntryScreen({ date, focusBody }: { date: string; focusBody: boolean }) {
   const entry = useEntry(date);
   const [title, setTitle] = useState(entry.title);
   const [body, setBody] = useState(entry.body);
-  const [showAll, setShowAll] = useState(false);
   const [viewer, setViewer] = useState<string | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -64,7 +62,6 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
 
   const cover = coverOf(entry);
   const photos = entry.photoIds;
-  const shown = showAll ? photos : photos.slice(0, PREVIEW_PHOTOS);
   const exists = hasContent(entry);
 
   const addLocation = async () => {
@@ -90,7 +87,7 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
   return (
     <div className="page">
       <div className="subbar">
-        <div className="wrap narrow subbar-inner">
+        <div className="wrap narrow subbar-inner wide">
           <button className="icon-btn" aria-label="Back to Archive" onClick={() => (flush(), go(tabHome()))}>
             <Icon name="chevL" stroke={2} />
           </button>
@@ -98,14 +95,25 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
             <div className="eyebrow">{weekdayName(date)}</div>
             <div className="main ellipsis">{longDate(date)}</div>
           </div>
-          <button
-            className="icon-btn accent"
-            aria-label={entry.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
-            aria-pressed={entry.favorite}
-            onClick={toggleFavorite}
-          >
-            <Icon name={entry.favorite ? 'heartFill' : 'heart'} />
-          </button>
+          <div className="row" style={{ justifySelf: 'end' }}>
+            <button
+              className={`icon-btn${entry.place ? ' accent' : ''}`}
+              aria-label={locating ? 'Finding Your Location' : entry.place ? `Location: ${entry.place.name}` : 'Add Location'}
+              onClick={addLocation}
+              disabled={locating}
+              style={locating ? { opacity: 0.5 } : undefined}
+            >
+              <Icon name="pin" />
+            </button>
+            <button
+              className="icon-btn accent"
+              aria-label={entry.favorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              aria-pressed={entry.favorite}
+              onClick={toggleFavorite}
+            >
+              <Icon name={entry.favorite ? 'heartFill' : 'heart'} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -151,18 +159,6 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
             }}
             onBlur={flush}
           />
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-            <button className="chip" style={{ minHeight: 32 }} onClick={addLocation} disabled={locating}>
-              <Icon name="pin" size={13} stroke={2} />
-              <span className="ellipsis">{locating ? 'Finding You…' : (entry.place?.name ?? 'Add Location')}</span>
-            </button>
-            {photos.length > 0 && (
-              <span className="chip" style={{ minHeight: 32 }}>
-                <Icon name="image" size={13} stroke={2} />
-                {photos.length} {photos.length === 1 ? 'Photo' : 'Photos'}
-              </span>
-            )}
-          </div>
         </div>
 
         {entry.recordings.map((r, i) => (
@@ -205,26 +201,28 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
           />
         </article>
 
-        <section className="stack" style={{ gap: 10 }} aria-label="Photo Dump">
+        <section className="stack" style={{ gap: 14 }} aria-label="Photo Dump">
           <div className="row between" style={{ gap: 12 }}>
             <h2 className="h3">Photo Dump</h2>
-            {photos.length > PREVIEW_PHOTOS && (
-              <button className="link-btn" onClick={() => setShowAll((v) => !v)}>
-                {showAll ? 'Show Less' : `See All ${photos.length}`}
-              </button>
-            )}
+            <span className="tiny" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {photos.length} of {MAX_PHOTOS}
+            </span>
           </div>
-          <div className="photo-grid">
-            {shown.map((id, i) => (
-              <button key={id} className={i === 0 && photos.length >= 3 ? 'big' : ''} onClick={() => setViewer(id)} aria-label={`Open Photo ${i + 1}`}>
-                <Photo id={id} thumb={!(i === 0 && photos.length >= 3)} />
-              </button>
-            ))}
-            <a className="add" href={`#/entry/${date}/camera`} style={{ aspectRatio: '1', borderRadius: 'var(--r-sm)' }}>
-              <Icon name="camera" size={22} />
+          {photos.length > 0 ? (
+            <InstantStack ids={photos} onOpen={setViewer} />
+          ) : (
+            <a className="hero-empty" href={`#/entry/${date}/camera`} style={{ aspectRatio: '4 / 3' }}>
+              <Icon name="camera" size={26} />
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>Add Up to 10 Photos</span>
+              <span className="small">Tap through them like a stack of instants.</span>
+            </a>
+          )}
+          {photos.length > 0 && photos.length < MAX_PHOTOS && (
+            <a className="pill" href={`#/entry/${date}/camera`} style={{ alignSelf: 'center' }}>
+              <Icon name="camera" size={16} stroke={1.9} />
               Add Photos
             </a>
-          </div>
+          )}
         </section>
 
         {exists && (
@@ -250,7 +248,7 @@ export function EntryScreen({ date, focusBody }: { date: string; focusBody: bool
           >
             <Icon name="keyboard" />
           </button>
-          <a className="icon-btn main" href={`#/entry/${date}/speak`} aria-label="Speak" onClick={flush}>
+          <a className="icon-btn main" href={`#/entry/${date}/speak?auto=1`} aria-label="Start Recording" onClick={flush}>
             <Icon name="mic" size={26} stroke={1.9} />
           </a>
           <a className="icon-btn" href={`#/entry/${date}/camera`} aria-label="Camera" onClick={flush}>

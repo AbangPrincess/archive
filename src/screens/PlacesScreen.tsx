@@ -35,15 +35,18 @@ export function PlacesScreen({ toggleSearch }: { toggleSearch: () => void }) {
     const now = new Date();
     const y = String(now.getFullYear());
     const ym = `${y}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    // Entries within ~150 m of each other share one pin.
+    // Repeat visits to the same place share ONE pin: same place name, or within ~300 m
+    // (phone GPS drifts). Entries arrive newest first, so each pin sits where you were
+    // most recently and shows the Photo of the Day from your latest visit.
     const out: Group[] = [];
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
     for (const e of entries) {
       if (!e.place) continue;
       if (range === 'year' && !e.date.startsWith(y)) continue;
       if (range === 'month' && !e.date.startsWith(ym)) continue;
       const { lat, lng, name } = e.place;
-      const near = out.find((g) => metersBetween(g.lat, g.lng, lat, lng) < 150);
-      if (near) near.entries.push(e);
+      const same = out.find((g) => norm(g.name) === norm(name) || metersBetween(g.lat, g.lng, lat, lng) < 300);
+      if (same) same.entries.push(e);
       else out.push({ key: `${lat.toFixed(5)},${lng.toFixed(5)}`, name, lat, lng, entries: [e] });
     }
     return out;

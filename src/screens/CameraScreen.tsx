@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { toast } from '../components/Toast';
-import { addPhotos, useEntry, useBlobUrl } from '../lib/store';
+import { addPhotos, photoToast, useEntry, useBlobUrl } from '../lib/store';
+import { MAX_PHOTOS } from '../lib/types';
 import { go } from '../lib/router';
 
 type State = 'starting' | 'live' | 'error';
@@ -20,6 +21,8 @@ export function CameraScreen({ date }: { date: string }) {
   const picker = useRef<HTMLInputElement>(null);
   const lastId = entry.photoIds[entry.photoIds.length - 1];
   const lastThumb = useBlobUrl(lastId, true);
+  const count = entry.photoIds.length;
+  const full = count >= MAX_PHOTOS;
 
   useEffect(() => {
     let live = true;
@@ -57,6 +60,7 @@ export function CameraScreen({ date }: { date: string }) {
   const snap = async () => {
     const v = video.current;
     if (!v || !v.videoWidth || busy) return;
+    if (full) return toast(photoToast(0, 1));
     setBusy(true);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 60);
@@ -73,8 +77,8 @@ export function CameraScreen({ date }: { date: string }) {
     }
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.92));
     if (blob) {
-      await addPhotos(date, [blob]);
-      setAdded((n) => n + 1);
+      const { added: n } = await addPhotos(date, [blob]);
+      setAdded((x) => x + n);
     }
     setBusy(false);
   };
@@ -82,10 +86,10 @@ export function CameraScreen({ date }: { date: string }) {
   const fromGallery = async (files: File[]) => {
     if (!files.length) return;
     setBusy(true);
-    await addPhotos(date, files);
+    const { added: n, skipped } = await addPhotos(date, files);
     setBusy(false);
-    toast(`${files.length} ${files.length === 1 ? 'photo' : 'photos'} added.`);
-    go(`/entry/${date}`);
+    toast(photoToast(n, skipped));
+    if (n) go(`/entry/${date}`);
   };
 
   return (
@@ -97,7 +101,9 @@ export function CameraScreen({ date }: { date: string }) {
         <button className="icon-btn" aria-label="Close Camera" onClick={close}>
           <Icon name="x" stroke={2} />
         </button>
-        {added > 0 ? <span className="cam-count" role="status">{added} Added</span> : <span />}
+        <span className="cam-count" role="status">
+          {count} of {MAX_PHOTOS} Photos
+        </span>
         {canFlip && state === 'live' ? (
           <button className="icon-btn" aria-label="Switch Camera" onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))}>
             <Icon name="flip" size={20} stroke={1.9} />
@@ -125,7 +131,7 @@ export function CameraScreen({ date }: { date: string }) {
         <button className="gallery-btn" aria-label="Choose From Gallery" onClick={() => picker.current?.click()} disabled={busy}>
           {lastThumb ? <img src={lastThumb} alt="" /> : <Icon name="image" size={22} />}
         </button>
-        <button className="shutter" aria-label="Take Photo" onClick={snap} disabled={state !== 'live' || busy}>
+        <button className="shutter" aria-label={full ? 'Photo Limit Reached' : 'Take Photo'} onClick={snap} disabled={state !== 'live' || busy || full}>
           <span />
         </button>
         {added > 0 ? (

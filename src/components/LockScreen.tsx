@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal } from './Modal';
-import { AppLogo } from './AppLogo';
+import { Wordmark } from './TopBar';
 import { checkPin, getFails, getHint, hintUnlocked, lockRemaining, MAX_TRIES, recordFail, resetFails, setHint, setPin, clearPinData } from '../lib/pin';
 import { wipeEverything } from '../lib/store';
 import { resetSettings } from '../lib/settings';
@@ -152,7 +152,7 @@ export function LockScreen({ mode, onDone, onCancel }: Props) {
         </button>
       )}
       <div className="lock-inner">
-        <AppLogo size={56} title="Archive" />
+        <Wordmark center />
         <h1 id="lock-title" className="h2 lock-title">
           {title}
         </h1>
@@ -229,7 +229,7 @@ function HintStep({ pin, onSaved }: { pin: string; onSaved: () => void }) {
           save();
         }}
       >
-        <AppLogo size={56} title="Archive" />
+        <Wordmark center />
         <h1 id="hint-title" className="h2 lock-title">
           Add a PIN Hint
         </h1>

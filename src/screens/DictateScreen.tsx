@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Confirm } from '../components/Modal';
 import { toast } from '../components/Toast';
-import { addPhotos, addRecording, updateEntry, useEntry } from '../lib/store';
+import { addPhotos, addRecording, photoToast, updateEntry, useEntry } from '../lib/store';
 import { duration, fromKey } from '../lib/dates';
 import { go } from '../lib/router';
 import { locateMe } from '../lib/geo';
@@ -14,7 +14,7 @@ import type { Segment } from '../lib/types';
 type Phase = 'idle' | 'recording' | 'paused' | 'saving';
 const BARS = 40;
 
-export function DictateScreen({ date }: { date: string }) {
+export function DictateScreen({ date, autoStart = false }: { date: string; autoStart?: boolean }) {
   const entry = useEntry(date);
   const [phase, setPhase] = useState<Phase>('idle');
   const [elapsed, setElapsed] = useState(0);
@@ -176,6 +176,7 @@ export function DictateScreen({ date }: { date: string }) {
       try {
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         const ctx = new Ctx();
+        if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 512;
         ctx.createMediaStreamSource(s).connect(analyser);
@@ -228,6 +229,15 @@ export function DictateScreen({ date }: { date: string }) {
   }, []);
 
   useEffect(() => cleanup, [cleanup]);
+
+  // Opened from a microphone button: start recording immediately, no extra tap.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoStart || autoStarted.current) return;
+    autoStarted.current = true;
+    go(`/entry/${date}/speak`, true); // a refresh shouldn't start a second recording
+    void start();
+  }, [autoStart]);
 
   const finish = async (thenFocusBody = false) => {
     if (phase === 'idle') {
@@ -362,8 +372,8 @@ export function DictateScreen({ date }: { date: string }) {
               const files = [...(e.target.files ?? [])];
               e.target.value = '';
               if (files.length) {
-                await addPhotos(date, files);
-                toast(`${files.length} ${files.length === 1 ? 'photo' : 'photos'} added.`);
+                const { added, skipped } = await addPhotos(date, files);
+                toast(photoToast(added, skipped));
               }
             }}
           />

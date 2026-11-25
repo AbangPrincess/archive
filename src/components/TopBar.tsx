@@ -11,16 +11,27 @@ const TABS: { key: TabKey; label: string; icon: IconName; activeIcon?: IconName 
 
 type Props = { active: TabKey; onSearch?: () => void; searchOpen?: boolean };
 
+/**
+ * The "My Journal / Archive" wordmark. The header, splash screen and PIN screen
+ * all use this one component so the text, font, size and spacing always match.
+ */
+export function Wordmark({ heading = false, center = false }: { heading?: boolean; center?: boolean }) {
+  const Title = heading ? 'h1' : 'span';
+  return (
+    <div className={`wordmark${center ? ' center' : ''}`}>
+      <span className="eyebrow">My Journal</span>
+      <Title className="brand">Archive</Title>
+    </div>
+  );
+}
+
 /** "My Journal / Archive" header with search, the menu, and the four archive tabs. */
 export function TopBar({ active, onSearch, searchOpen }: Props) {
   return (
     <div className="topbar">
       <div className="wrap">
         <header className="app-header">
-          <div className="stack" style={{ gap: 2, minWidth: 0 }}>
-            <span className="eyebrow">My Journal</span>
-            <h1 className="brand">Archive</h1>
-          </div>
+          <Wordmark heading />
           <div className="actions">
             <button className="icon-btn" aria-label={searchOpen ? 'Close Search' : 'Search Entries'} aria-pressed={searchOpen} onClick={onSearch}>
               <Icon name={searchOpen ? 'x' : 'search'} />
@@ -55,7 +66,7 @@ export function WriteDock({ today }: { today: string }) {
           <Icon name="pen" size={20} />
           Write Today
         </a>
-        <a className="mic-btn" href={`#/entry/${today}/speak`} aria-label="Speak Today’s Entry">
+        <a className="mic-btn" href={`#/entry/${today}/speak?auto=1`} aria-label="Start Recording Today’s Entry">
           <Icon name="mic" size={24} stroke={1.9} />
         </a>
       </div>

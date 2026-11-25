@@ -272,7 +272,7 @@ export function ListenScreen({ date, recId }: { date: string; recId: string | nu
           <button className="icon-btn" aria-label="Forward 15 Seconds" disabled={!voice} aria-hidden={!voice} onClick={() => seek(t + 15)} style={{ width: 52, height: 52, visibility: voice ? 'visible' : 'hidden' }}>
             <SkipIcon dir="fwd" />
           </button>
-          <a className="icon-btn outline accent" href={`#/entry/${date}/speak`} aria-label="Add More by Voice" style={{ width: 48, height: 48 }}>
+          <a className="icon-btn outline accent" href={`#/entry/${date}/speak?auto=1`} aria-label="Add More by Voice" style={{ width: 48, height: 48 }}>
             <Icon name="plus" size={20} stroke={1.9} />
           </a>
         </div>

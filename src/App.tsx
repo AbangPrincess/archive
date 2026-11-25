@@ -115,7 +115,7 @@ export function App() {
 
   let screen: React.ReactNode = null;
   if (section === 'entry' && isValidKey(date) && date <= todayKey()) {
-    if (tool === 'speak') screen = <DictateScreen key={date} date={date} />;
+    if (tool === 'speak') screen = <DictateScreen key={date} date={date} autoStart={qs.get('auto') === '1'} />;
     else if (tool === 'listen') screen = <ListenScreen key={`${date}-${qs.get('r')}`} date={date} recId={qs.get('r')} />;
     else if (tool === 'camera') screen = <CameraScreen key={date} date={date} />;
     else screen = <EntryScreen key={date} date={date} focusBody={qs.get('focus') === 'body'} />;

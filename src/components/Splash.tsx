@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AppLogo } from './AppLogo';
+import { Wordmark } from './TopBar';
 
 export const SPLASH_MS = 2000;
 
-/** Opening splash: the app mark fades in, holds, and fades out within two seconds. */
+/** Opening splash: the same "My Journal / Archive" wordmark as the header, fading in and out within two seconds. */
 export function Splash() {
   const [show, setShow] = useState(true);
   useEffect(() => {
@@ -14,8 +14,7 @@ export function Splash() {
   return (
     <div className="splash" role="status" aria-label="Opening Archive">
       <div className="splash-mark">
-        <AppLogo size={88} />
-        <span className="splash-name">Archive</span>
+        <Wordmark />
       </div>
     </div>
   );

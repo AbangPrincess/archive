@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { db, uid } from './db';
-import { emptyEntry, hasContent, type Entry, type Recording } from './types';
+import { emptyEntry, hasContent, MAX_PHOTOS, type Entry, type Recording } from './types';
 import { resizeImage } from './media';
 
 /** Small in-memory mirror of the entries store so every screen stays in sync. */
@@ -60,17 +60,26 @@ export async function updateEntry(date: string, patch: (e: Entry) => Entry) {
   await saveEntry(patch(findEntry(date)));
 }
 
-export async function addPhotos(date: string, files: Blob[]) {
+/** Adds photos to a day, up to MAX_PHOTOS. Returns how many were added and how many didn't fit. */
+export async function addPhotos(date: string, files: Blob[]): Promise<{ added: number; skipped: number }> {
+  const room = Math.max(0, MAX_PHOTOS - findEntry(date).photoIds.length);
+  const take = files.slice(0, room);
   const ids: string[] = [];
-  for (const file of files) {
+  for (const file of take) {
     const id = uid();
     const [full, thumb] = await Promise.all([resizeImage(file, 1600, 0.86), resizeImage(file, 420, 0.8)]);
     await db.putBlob(id, full);
     await db.putBlob(`${id}:thumb`, thumb);
     ids.push(id);
   }
-  await updateEntry(date, (e) => ({ ...e, photoIds: [...e.photoIds, ...ids] }));
-  return ids;
+  if (ids.length) await updateEntry(date, (e) => ({ ...e, photoIds: [...e.photoIds, ...ids].slice(0, MAX_PHOTOS) }));
+  return { added: ids.length, skipped: files.length - ids.length };
+}
+
+export function photoToast(added: number, skipped: number): string {
+  if (!added) return `This day already has ${MAX_PHOTOS} photos. Remove one to add another.`;
+  const base = `${added} ${added === 1 ? 'photo' : 'photos'} added.`;
+  return skipped ? `${base} Only ${MAX_PHOTOS} fit in one day, so ${skipped} ${skipped === 1 ? 'was' : 'were'} left out.` : base;
 }
 
 export async function removePhoto(date: string, id: string) {

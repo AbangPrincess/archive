@@ -34,6 +34,9 @@ export type Entry = {
   updatedAt: number;
 };
 
+/** Each day's photo dump holds up to this many photos. */
+export const MAX_PHOTOS = 10;
+
 export function emptyEntry(date: string): Entry {
   const now = Date.now();
   return {

@@ -55,10 +55,26 @@ export function useSettings(): Settings {
  * otherwise the device language.
  */
 export function speechLangFor(): string {
-  if (current.speechLang) return current.speechLang;
+  return current.speechLang || autoSpeechLang();
+}
+
+/** What "Automatic" resolves to on this device. */
+export function autoSpeechLang(): string {
+  return inPhilippines() ? 'fil-PH' : navigator.language || 'en-US';
+}
+
+/**
+ * Most phones in the Philippines are set to English, so the device language alone
+ * misses Tagalog speakers. The Philippine time zone is a far better signal.
+ */
+function inPhilippines(): boolean {
   const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
-  const ph = langs.some((l) => /^(fil|tl|ceb|hil|ilo)\b/i.test(l) || /-PH$/i.test(l));
-  return ph ? 'fil-PH' : navigator.language || 'en-US';
+  if (langs.some((l) => /^(fil|tl|ceb|hil|ilo|war|pam|bik)\b/i.test(l) || /-PH$/i.test(l))) return true;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Manila';
+  } catch {
+    return false;
+  }
 }
 
 /** Languages to fall back to, in order, if the browser can't listen in the chosen one. */
